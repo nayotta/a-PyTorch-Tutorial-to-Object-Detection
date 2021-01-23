@@ -254,7 +254,7 @@ def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels, tr
         cumul_true_positives = torch.cumsum(true_positives, dim=0)  # (n_class_detections)
         cumul_false_positives = torch.cumsum(false_positives, dim=0)  # (n_class_detections)
         cumul_precision = cumul_true_positives / (
-                cumul_true_positives + cumul_false_positives + 1e-10)  # (n_class_detections)
+            cumul_true_positives + cumul_false_positives + 1e-10)  # (n_class_detections)
         cumul_recall = cumul_true_positives / n_easy_class_objects  # (n_class_detections)
 
         # Find the mean of the maximum of the precisions corresponding to recalls above the threshold 't'
@@ -412,13 +412,12 @@ def expand(image, boxes, filler):
     new_image[:, top:bottom, left:right] = image
 
     # Adjust bounding boxes' coordinates accordingly
-    new_boxes = boxes + torch.FloatTensor([left, top, left, top]).unsqueeze(
-        0)  # (n_objects, 4), n_objects is the no. of objects in this image
+    new_boxes = boxes + torch.FloatTensor([left, top, left, top]).unsqueeze(0)  # (n_objects, 4), n_objects is the no. of objects in this image
 
     return new_image, new_boxes
 
 
-def random_crop(image, boxes, labels, difficulties):
+def random_crop(image, boxes, labels):
     """
     Performs a random crop in the manner stated in the paper. Helps to learn to detect larger and partial objects.
 
@@ -429,8 +428,7 @@ def random_crop(image, boxes, labels, difficulties):
     :param image: image, a tensor of dimensions (3, original_h, original_w)
     :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
     :param labels: labels of objects, a tensor of dimensions (n_objects)
-    :param difficulties: difficulties of detection of these objects, a tensor of dimensions (n_objects)
-    :return: cropped image, updated bounding box coordinates, updated labels, updated difficulties
+    :return: cropped image, updated bounding box coordinates, updated labels
     """
     original_h = image.size(1)
     original_w = image.size(2)
@@ -441,7 +439,7 @@ def random_crop(image, boxes, labels, difficulties):
 
         # If not cropping
         if min_overlap is None:
-            return image, boxes, labels, difficulties
+            return image, boxes, labels
 
         # Try up to 50 times for this choice of minimum overlap
         # This isn't mentioned in the paper, of course, but 50 is chosen in paper authors' original Caffe repo
@@ -484,7 +482,7 @@ def random_crop(image, boxes, labels, difficulties):
 
             # Find bounding boxes whose centers are in the crop
             centers_in_crop = (bb_centers[:, 0] > left) * (bb_centers[:, 0] < right) * (bb_centers[:, 1] > top) * (
-                    bb_centers[:, 1] < bottom)  # (n_objects), a Torch uInt8/Byte tensor, can be used as a boolean index
+                bb_centers[:, 1] < bottom)  # (n_objects), a Torch uInt8/Byte tensor, can be used as a boolean index
 
             # If not a single bounding box has its center in the crop, try again
             if not centers_in_crop.any():
@@ -493,7 +491,6 @@ def random_crop(image, boxes, labels, difficulties):
             # Discard bounding boxes that don't meet this criterion
             new_boxes = boxes[centers_in_crop, :]
             new_labels = labels[centers_in_crop]
-            new_difficulties = difficulties[centers_in_crop]
 
             # Calculate bounding boxes' new coordinates in the crop
             new_boxes[:, :2] = torch.max(new_boxes[:, :2], crop[:2])  # crop[:2] is [left, top]
@@ -501,7 +498,7 @@ def random_crop(image, boxes, labels, difficulties):
             new_boxes[:, 2:] = torch.min(new_boxes[:, 2:], crop[2:])  # crop[2:] is [right, bottom]
             new_boxes[:, 2:] -= crop[:2]
 
-            return new_image, new_boxes, new_labels, new_difficulties
+            return new_image, new_boxes, new_labels
 
 
 def flip(image, boxes):
@@ -516,35 +513,35 @@ def flip(image, boxes):
     new_image = FT.hflip(image)
 
     # Flip boxes
+    width = image.size(2)
     new_boxes = boxes
-    new_boxes[:, 0] = image.width - boxes[:, 0] - 1
-    new_boxes[:, 2] = image.width - boxes[:, 2] - 1
-    new_boxes = new_boxes[:, [2, 1, 0, 3]]
+    new_boxes[:, 0] = width - boxes[:, 2] - 1
+    new_boxes[:, 2] = width - boxes[:, 0] - 1
 
     return new_image, new_boxes
 
 
-def resize(image, boxes, dims=(300, 300), return_percent_coords=True):
+def resize(image, boxes, size, return_percent_coords=True):
     """
-    Resize image. For the SSD300, resize to (300, 300).
+    Resize image.
 
     Since percent/fractional coordinates are calculated for the bounding boxes (w.r.t image dimensions) in this process,
     you may choose to retain them.
 
-    :param image: image, a PIL Image
+    :param image: image, a tensor of dimensions (3, height, width)
     :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
     :return: resized image, updated bounding box coordinates (or fractional coordinates, in which case they remain the same)
     """
-    # Resize image
-    new_image = FT.resize(image, dims)
-
     # Resize bounding boxes
-    old_dims = torch.FloatTensor([image.width, image.height, image.width, image.height]).unsqueeze(0)
-    new_boxes = boxes / old_dims  # percent coordinates
+    old_size = torch.FloatTensor([image.size(2), image.size(1), image.size(2), image.size(1)]).unsqueeze(0)
+    new_boxes = boxes / old_size  # percent coordinates
+
+    # Resize image
+    new_image = FT.resize(image, size)
 
     if not return_percent_coords:
-        new_dims = torch.FloatTensor([dims[1], dims[0], dims[1], dims[0]]).unsqueeze(0)
-        new_boxes = new_boxes * new_dims
+        new_size = torch.FloatTensor([size[1], size[0], size[1], size[0]]).unsqueeze(0)
+        boxes = boxes * new_size
 
     return new_image, new_boxes
 
@@ -567,7 +564,7 @@ def photometric_distort(image):
 
     for d in distortions:
         if random.random() < 0.5:
-            if d.__name__ is 'adjust_hue':
+            if d.__name__ == 'adjust_hue':
                 # Caffe repo uses a 'hue_delta' of 18 - we divide by 255 because PyTorch needs a normalized value
                 adjust_factor = random.uniform(-18 / 255., 18 / 255.)
             else:
@@ -580,16 +577,13 @@ def photometric_distort(image):
     return new_image
 
 
-def transform(image, boxes, labels, difficulties, split):
+def get_transform(size, split):
     """
-    Apply the transformations above.
+    Get the transform function with given size and split.
 
-    :param image: image, a PIL Image
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
-    :param labels: labels of objects, a tensor of dimensions (n_objects)
-    :param difficulties: difficulties of detection of these objects, a tensor of dimensions (n_objects)
+    :param size: (height, width) to resize image
     :param split: one of 'TRAIN' or 'TEST', since different sets of transformations are applied
-    :return: transformed image, transformed bounding box coordinates, transformed labels, transformed difficulties
+    :return: transform for dataset
     """
     assert split in {'TRAIN', 'TEST'}
 
@@ -598,44 +592,46 @@ def transform(image, boxes, labels, difficulties, split):
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
 
-    new_image = image
-    new_boxes = boxes
-    new_labels = labels
-    new_difficulties = difficulties
-    # Skip the following operations for evaluation/testing
-    if split == 'TRAIN':
-        # A series of photometric distortions in random order, each with 50% chance of occurrence, as in Caffe repo
-        new_image = photometric_distort(new_image)
+    def transform(image, boxes, labels):
+        """
+        Apply the transformations above.
 
-        # Convert PIL image to Torch tensor
-        new_image = FT.to_tensor(new_image)
+        :param image: image, a tensor of dimensions (3, height, width)
+        :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
+        :param labels: labels of objects, a tensor of dimensions (n_objects)
+        :return: transformed image, transformed bounding box coordinates, transformed labels
+        """
 
-        # Expand image (zoom out) with a 50% chance - helpful for training detection of small objects
-        # Fill surrounding space with the mean of ImageNet data that our base VGG was trained on
-        if random.random() < 0.5:
-            new_image, new_boxes = expand(new_image, boxes, filler=mean)
+        new_image = image
+        new_boxes = boxes
+        new_labels = labels
 
-        # Randomly crop image (zoom in)
-        new_image, new_boxes, new_labels, new_difficulties = random_crop(new_image, new_boxes, new_labels,
-                                                                         new_difficulties)
+        # Skip the following operations for evaluation/testing
+        if split == 'TRAIN':
+            # A series of photometric distortions in random order, each with 50% chance of occurrence, as in Caffe repo
+            new_image = photometric_distort(new_image)
 
-        # Convert Torch tensor to PIL image
-        new_image = FT.to_pil_image(new_image)
+            # Expand image (zoom out) with a 50% chance - helpful for training detection of small objects
+            # Fill surrounding space with the mean of ImageNet data that our base VGG was trained on
+            if random.random() < 0.5:
+                new_image, new_boxes = expand(new_image, new_boxes, filler=mean)
 
-        # Flip image with a 50% chance
-        if random.random() < 0.5:
-            new_image, new_boxes = flip(new_image, new_boxes)
+            # Randomly crop image (zoom in)
+            new_image, new_boxes, new_labels = random_crop(new_image, new_boxes, new_labels)
 
-    # Resize image to (300, 300) - this also converts absolute boundary coordinates to their fractional form
-    new_image, new_boxes = resize(new_image, new_boxes, dims=(300, 300))
+            # Flip image with a 50% chance
+            if random.random() < 0.5:
+                new_image, new_boxes = flip(new_image, new_boxes)
 
-    # Convert PIL image to Torch tensor
-    new_image = FT.to_tensor(new_image)
+        # Resize image to `size` - this also converts absolute boundary coordinates to their fractional form
+        new_image, new_boxes = resize(new_image, new_boxes, size)
 
-    # Normalize by mean and standard deviation of ImageNet data that our base VGG was trained on
-    new_image = FT.normalize(new_image, mean=mean, std=std)
+        # Normalize by mean and standard deviation of ImageNet data that our base VGG was trained on
+        new_image = FT.normalize(new_image, mean=mean, std=std)
 
-    return new_image, new_boxes, new_labels, new_difficulties
+        return new_image, new_boxes, new_labels
+
+    return transform
 
 
 def adjust_learning_rate(optimizer, scale):

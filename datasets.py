@@ -1,63 +1,67 @@
 import torch
 from torch.utils.data import Dataset
-import json
-import os
-from PIL import Image
-from utils import transform
+from torchvision.datasets.voc import VOCDetection
+from torchvision.transforms.functional import to_tensor
+
+from utils import get_transform
 
 
 class PascalVOCDataset(Dataset):
-    """
-    A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
-    """
-
-    def __init__(self, data_folder, split, keep_difficult=False):
+    def __init__(self, root, split, image_size=(300, 300), keep_difficult=False):
         """
-        :param data_folder: folder where data files are stored
-        :param split: split, one of 'TRAIN' or 'TEST'
-        :param keep_difficult: keep or discard objects that are considered difficult to detect?
+        A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
+
+        :param root: path to stored voc data
+        :param split: split, 'TRAIN' or 'TEST', train and val dataset from both 2007 and 2012 is used for 'TRAIN' split,
+            test dataset from 2007 is used for 'TEST' split.
+        :param image_size: (height, width) for network input size
+        :param keep_difficult: keep ot discard objects considered diffcult to detect
         """
-        self.split = split.upper()
+        split = split.upper()
+        assert split in {'TRAIN', 'TEST'}
 
-        assert self.split in {'TRAIN', 'TEST'}
-
-        self.data_folder = data_folder
         self.keep_difficult = keep_difficult
+        self.transform = get_transform(image_size, split)
 
-        # Read data files
-        with open(os.path.join(data_folder, self.split + '_images.json'), 'r') as j:
-            self.images = json.load(j)
-        with open(os.path.join(data_folder, self.split + '_objects.json'), 'r') as j:
-            self.objects = json.load(j)
-
-        assert len(self.images) == len(self.objects)
-
-    def __getitem__(self, i):
-        # Read image
-        image = Image.open(self.images[i], mode='r')
-        image = image.convert('RGB')
-
-        # Read objects in this image (bounding boxes, labels, difficulties)
-        objects = self.objects[i]
-        boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
-        labels = torch.LongTensor(objects['labels'])  # (n_objects)
-        difficulties = torch.ByteTensor(objects['difficulties'])  # (n_objects)
-
-        # Discard difficult objects, if desired
-        if not self.keep_difficult:
-            boxes = boxes[1 - difficulties]
-            labels = labels[1 - difficulties]
-            difficulties = difficulties[1 - difficulties]
-
-        # Apply transformations
-        image, boxes, labels, difficulties = transform(image, boxes, labels, difficulties, split=self.split)
-
-        return image, boxes, labels, difficulties
+        if split == 'TRAIN':
+            self.datasets = [
+                VOCDetection('data', year='2007', image_set='trainval'),
+                VOCDetection('data', year='2012', image_set='trainval')
+            ]
+        else:
+            self.datasets = [
+                VOCDetection('data', year='2007', image_set='test')
+            ]
 
     def __len__(self):
-        return len(self.images)
+        return sum([len(ds) for ds in self.datasets])
 
-    def collate_fn(self, batch):
+    def __getitem__(self, i):
+        for ds in self.datasets:
+            if i < len(ds):
+                break
+            i -= len(ds)
+
+        image, targets = ds[i]
+        image = to_tensor(image)
+
+        objects = targets['annotation']['object']
+        # Discard difficult objects, if desired
+        if not self.keep_difficult:
+            objects = [obj for obj in objects if obj['difficult'] != '1']
+
+        boxes = [obj['bndbox'] for obj in objects]  # (n_objects, 4)
+        boxes = [[int(box['xmin']), int(box['ymin']), int(box['xmax']), int(box['ymax'])] for box in boxes]
+        boxes = torch.FloatTensor(boxes)
+
+        labels = [self.label_map()[obj['name']] for obj in objects]  # (n_objects)
+        labels = torch.FloatTensor(labels)
+
+        image, boxes, labels = self.transform(image, boxes, labels)
+        return image, boxes, labels
+
+    @staticmethod
+    def collate_fn(batch):
         """
         Since each image may have a different number of objects, we need a collate function (to be passed to the DataLoader).
 
@@ -68,18 +72,36 @@ class PascalVOCDataset(Dataset):
         :param batch: an iterable of N sets from __getitem__()
         :return: a tensor of images, lists of varying-size tensors of bounding boxes, labels, and difficulties
         """
-
-        images = list()
-        boxes = list()
-        labels = list()
-        difficulties = list()
-
-        for b in batch:
-            images.append(b[0])
-            boxes.append(b[1])
-            labels.append(b[2])
-            difficulties.append(b[3])
+        images = [i[0] for i in batch]
+        boxes = [i[1] for i in batch]
+        labels = [i[2] for i in batch]
 
         images = torch.stack(images, dim=0)
 
-        return images, boxes, labels, difficulties  # tensor (N, 3, 300, 300), 3 lists of N tensors each
+        return images, boxes, labels  # tensor (N, 3, height, width), 2 lists of N tensors eachs
+
+    @staticmethod
+    def label_map():
+        return {
+            'aeroplane': 1,
+            'bicycle': 2,
+            'bird': 3,
+            'boat': 4,
+            'bottle': 5,
+            'bus': 6,
+            'car': 7,
+            'cat': 8,
+            'chair': 9,
+            'cow': 10,
+            'diningtable': 11,
+            'dog': 12,
+            'horse': 13,
+            'motorbike': 14,
+            'person': 15,
+            'pottedplant': 16,
+            'sheep': 17,
+            'sofa': 18,
+            'train': 19,
+            'tvmonitor': 20,
+            'background': 0,
+        }
