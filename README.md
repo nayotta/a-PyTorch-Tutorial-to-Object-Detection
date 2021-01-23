@@ -1,38 +1,17 @@
-This is a **[PyTorch](https://pytorch.org) Tutorial to Object Detection**.
-
-This is the third in [a series of tutorials](https://github.com/sgrvinod/Deep-Tutorials-for-PyTorch) I'm writing about _implementing_ cool models on your own with the amazing PyTorch library.
+This is a **[PyTorch](https://pytorch.org) Tutorial to Object Detection**, forked from [sgrvinod's project](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection) and **slightly modified**.
 
 Basic knowledge of PyTorch, convolutional neural networks is assumed.
 
-If you're new to PyTorch, first read [Deep Learning with PyTorch: A 60 Minute Blitz](https://pytorch.org/tutorials/beginner/deep_learning_60min_blitz.html) and [Learning PyTorch with Examples](https://pytorch.org/tutorials/beginner/pytorch_with_examples.html).
-
-Questions, suggestions, or corrections can be posted as issues.
-
-I'm using `PyTorch 0.4` in `Python 3.6`.
-
----
-
-**27 Jan 2020**: Working code for two new tutorials has been added — [Super-Resolution](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Super-Resolution) and [Machine Translation](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Machine-Translation)
-
----
-
 # Contents
 
-[***Objective***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#objective)
-
-[***Concepts***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#concepts)
-
-[***Overview***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#overview)
-
-[***Implementation***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#implementation)
-
-[***Training***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#training)
-
-[***Evaluation***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#evaluation)
-
-[***Inference***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#inference)
-
-[***Frequently Asked Questions***](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#faqs)
+- [***Objective***](#objective)
+- [***Concepts***](#concepts)
+- [***Overview***](#overview)
+- [***Implementation***](#implementation)
+- [***Training***](#training)
+- [***Evaluation***](#evaluation)
+- [***Inference***](#inference)
+- [***Frequently Asked Questions***](#faqs)
 
 # Objective
 
@@ -96,7 +75,7 @@ Here are some examples of object detection in images not seen during training �
 
 ---
 
-There are more examples at the [end of the tutorial](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#some-more-examples).
+There are more examples at the [end of the tutorial](#some-more-examples).
 
 ---
 
@@ -118,7 +97,7 @@ There are more examples at the [end of the tutorial](https://github.com/sgrvinod
 
 # Overview
 
-In this section, I will present an overview of this model. If you're already familiar with it, you can skip straight to the [Implementation](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#implementation) section or the commented code.
+In this section, I will present an overview of this model. If you're already familiar with it, you can skip straight to the [Implementation](#implementation) section or the commented code.
 
 As we proceed, you will notice that there's a fair bit of engineering that's resulted in the SSD's very specific structure and formulation. Don't worry if some aspects of it seem contrived or unspontaneous at first. Remember, it's built upon _years_ of (often empirical) research in this field.
 
@@ -247,7 +226,7 @@ Therefore, any fully connected layer can be converted to an equivalent convoluti
 
 We now know how to convert `fc6` and `fc7` in the original VGG-16 architecture into `conv6` and `conv7` respectively.
 
-In the ImageNet VGG-16 [shown previously](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#base-convolutions--part-1), which operates on images of size `224, 224, 3`, you can see that the output of `conv5_3` will be of size `7, 7, 512`. Therefore –
+In the ImageNet VGG-16 [shown previously](#base-convolutions--part-1), which operates on images of size `224, 224, 3`, you can see that the output of `conv5_3` will be of size `7, 7, 512`. Therefore –
 
 - `fc6` with a flattened input size of `7 * 7 * 512` and an output size of `4096` has parameters of dimensions `4096, 7 * 7 * 512`. **The equivalent convolutional layer `conv6` has a `7, 7` kernel size and `4096` output channels, with reshaped parameters of dimensions `4096, 7, 7, 512`.**
 
@@ -343,7 +322,7 @@ The same priors also exist for each of the other tiles.
 
 #### Predictions vis-à-vis Priors
 
-[Earlier](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#multibox), we said we would use regression to find the coordinates of an object's bounding box. But then, surely, the priors can't represent our final predicted boxes?
+[Earlier](#multibox), we said we would use regression to find the coordinates of an object's bounding box. But then, surely, the priors can't represent our final predicted boxes?
 
 They don't.
 
@@ -363,7 +342,7 @@ Then –
 
 ![](./img/ecs2.PNG)
 
-This answers the question we posed at the [beginning of this section](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#a-detour). Considering that each prior is adjusted to obtain a more precise prediction, **these four offsets `(g_c_x, g_c_y, g_w, g_h)` are the form in which we will regress bounding boxes' coordinates**.
+This answers the question we posed at the [beginning of this section](#a-detour). Considering that each prior is adjusted to obtain a more precise prediction, **these four offsets `(g_c_x, g_c_y, g_w, g_h)` are the form in which we will regress bounding boxes' coordinates**.
 
 As you can see, each offset is normalized by the corresponding dimension of the prior. This makes sense because a certain offset would be less significant for a larger prior than it would be for a smaller prior.
 
@@ -674,7 +653,7 @@ As you know, our data is divided into _training_ and _test_ splits.
 
 #### Parse raw data
 
-See `create_data_lists()` in [`utils.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/utils.py).
+See `create_data_lists()` in [`utils.py`](/blob/master/utils.py).
 
 This parses the data downloaded and saves the following files –
 
@@ -682,21 +661,21 @@ This parses the data downloaded and saves the following files –
 
 - A **JSON file for each split with a list of `I` dictionaries containing ground truth objects, i.e. bounding boxes in absolute boundary coordinates, their encoded labels, and perceived detection difficulties**. The `i`th dictionary in this list will contain the objects present in the `i`th image in the previous JSON file.
 
-- A **JSON file which contains the `label_map`**, the label-to-index dictionary with which the labels are encoded in the previous JSON file. This dictionary is also available in [`utils.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/utils.py) and directly importable.
+- A **JSON file which contains the `label_map`**, the label-to-index dictionary with which the labels are encoded in the previous JSON file. This dictionary is also available in [`utils.py`](/blob/master/utils.py) and directly importable.
 
 #### PyTorch Dataset
 
-See `PascalVOCDataset` in [`datasets.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/datasets.py).
+See `PascalVOCDataset` in [`datasets.py`](/blob/master/datasets.py).
 
 This is a subclass of PyTorch [`Dataset`](https://pytorch.org/docs/master/data.html#torch.utils.data.Dataset), used to **define our training and test datasets.** It needs a `__len__` method defined, which returns the size of the dataset, and a `__getitem__` method which returns the `i`th image, bounding boxes of the objects in this image, and labels for the objects in this image, using the JSON files we saved earlier.
 
-You will notice that it also returns the perceived detection difficulties of each of these objects, but these are not actually used in training the model. They are required only in the [Evaluation](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#evaluation) stage for computing the Mean Average Precision (mAP) metric. We also have the option of filtering out _difficult_ objects entirely from our data to speed up training at the cost of some accuracy.
+You will notice that it also returns the perceived detection difficulties of each of these objects, but these are not actually used in training the model. They are required only in the [Evaluation](#evaluation) stage for computing the Mean Average Precision (mAP) metric. We also have the option of filtering out _difficult_ objects entirely from our data to speed up training at the cost of some accuracy.
 
 Additionally, inside this class, **each image and the objects in them are subject to a slew of transformations** as described in the paper and outlined below.
 
 #### Data Transforms
 
-See `transform()` in [`utils.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/utils.py).
+See `transform()` in [`utils.py`](/blob/master/utils.py).
 
 This function applies the following transformations to the images and the objects in them –
 
@@ -726,7 +705,7 @@ Instead, we need to **pass a collating function to the `collate_fn` argument**, 
 
 ### Base Convolutions
 
-See `VGGBase` in [`model.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/model.py).
+See `VGGBase` in [`model.py`](/blob/master/model.py).
 
 Here, we **create and apply base convolutions.**
 
@@ -736,7 +715,7 @@ We're especially interested in the lower-level feature maps that result from `co
 
 ### Auxiliary Convolutions
 
-See `AuxiliaryConvolutions` in [`model.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/model.py).
+See `AuxiliaryConvolutions` in [`model.py`](/blob/master/model.py).
 
 Here, we **create and apply auxiliary convolutions.**
 
@@ -746,7 +725,7 @@ We're especially interested in the higher-level feature maps that result from `c
 
 ### Prediction Convolutions
 
-See `PredictionConvolutions` in [`model.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/model.py).
+See `PredictionConvolutions` in [`model.py`](/blob/master/model.py).
 
 Here, we **create and apply localization and class prediction convolutions** to the feature maps from `conv4_3`, `conv7`, `conv8_2`, `conv9_2`, `conv10_2` and `conv11_2`.
 
@@ -758,7 +737,7 @@ As expected, the stacked localization and class predictions will be of dimension
 
 ### Putting it all together
 
-See `SSD300` in [`model.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/model.py).
+See `SSD300` in [`model.py`](/blob/master/model.py).
 
 Here, the **base, auxiliary, and prediction convolutions are combined** to form the SSD.
 
@@ -766,7 +745,7 @@ There is a small detail here – the lowest level features, i.e. those from `con
 
 ### Priors
 
-See `create_prior_boxes()` under `SSD300` in [`model.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/model.py).
+See `create_prior_boxes()` under `SSD300` in [`model.py`](/blob/master/model.py).
 
 This function **creates the priors in center-size coordinates** as defined for the feature maps from `conv4_3`, `conv7`, `conv8_2`, `conv9_2`, `conv10_2` and `conv11_2`, _in that order_. Furthermore, for each feature map, we create the priors at each tile by traversing it row-wise.
 
@@ -774,7 +753,7 @@ This ordering of the 8732 priors thus obtained is very important because it need
 
 ### Multibox Loss
 
-See `MultiBoxLoss` in [`model.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/model.py).
+See `MultiBoxLoss` in [`model.py`](/blob/master/model.py).
 
 Two empty tensors are created to store localization and class prediction targets, i.e. _ground truths_, for the 8732 predicted boxes in each image.
 
@@ -794,9 +773,9 @@ The **Multibox Loss is the aggregate of these two losses**, combined in the rati
 
 # Training
 
-Before you begin, make sure to save the required data files for training and evaluation. To do this, run the contents of [`create_data_lists.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/create_data_lists.py) after pointing it to the `VOC2007` and `VOC2012` folders in your [downloaded data](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#download).
+Before you begin, make sure to save the required data files for training and evaluation. To do this, run the contents of [`create_data_lists.py`](/blob/master/create_data_lists.py) after pointing it to the `VOC2007` and `VOC2012` folders in your [downloaded data](#download).
 
-See [`train.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/train.py).
+See [`train.py`](/blob/master/train.py).
 
 The parameters for the model (and training it) are at the beginning of the file, so you can easily check or modify them should you need to.
 
@@ -826,15 +805,15 @@ Note that this checkpoint should be [loaded directly with PyTorch](https://pytor
 
 # Evaluation
 
-See [`eval.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/eval.py).
+See [`eval.py`](/blob/master/eval.py).
 
 The data-loading and checkpoint parameters for evaluating the model are at the beginning of the file, so you can easily check or modify them should you wish to.
 
-To begin evaluation, simply run the `evaluate()` function with the data-loader and model checkpoint. **Raw predictions for each image in the test set are obtained and parsed** with the checkpoint's `detect_objects()` method, which implements [this process](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#processing-predictions). Evaluation has to be done at a `min_score` of `0.01`, an NMS `max_overlap` of `0.45`, and `top_k` of `200` to allow fair comparision of results with the paper and other implementations.
+To begin evaluation, simply run the `evaluate()` function with the data-loader and model checkpoint. **Raw predictions for each image in the test set are obtained and parsed** with the checkpoint's `detect_objects()` method, which implements [this process](#processing-predictions). Evaluation has to be done at a `min_score` of `0.01`, an NMS `max_overlap` of `0.45`, and `top_k` of `200` to allow fair comparision of results with the paper and other implementations.
 
 **Parsed predictions are evaluated against the ground truth objects.** The evaluation metric is the _Mean Average Precision (mAP)_. If you're not familiar with this metric, [here's a great explanation](https://medium.com/@jonathan_hui/map-mean-average-precision-for-object-detection-45c121a31173).
 
-We will use `calculate_mAP()` in [`utils.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/utils.py) for this purpose. As is the norm, we will ignore _difficult_ detections in the mAP calculation. But nevertheless, it is important to include them from the evaluation dataset because if the model does detect an object that is considered to be _difficult_, it must not be counted as a false positive.
+We will use `calculate_mAP()` in [`utils.py`](/blob/master/utils.py) for this purpose. As is the norm, we will ignore _difficult_ detections in the mAP calculation. But nevertheless, it is important to include them from the evaluation dataset because if the model does detect an object that is considered to be _difficult_, it must not be counted as a false positive.
 
 The model scores **77.2 mAP**, same as the result reported in the paper.
 
@@ -867,7 +846,7 @@ You can see that some objects, like bottles and potted plants, are considerably 
 
 # Inference
 
-See [`detect.py`](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/detect.py).
+See [`detect.py`](/blob/master/detect.py).
 
 Point to the model you want to use for inference with the `checkpoint` parameter at the beginning of the code.
 
