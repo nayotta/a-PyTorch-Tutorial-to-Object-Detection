@@ -1,11 +1,13 @@
-from torch import nn
-from utils import *
+import torch
+import torch.nn as nn
 import torch.nn.functional as F
-from math import sqrt
-from itertools import product as product
 import torchvision
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from math import sqrt
+
+import utils
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class VGGBase(nn.Module):
@@ -110,13 +112,13 @@ class VGGBase(nn.Module):
         # fc6
         conv_fc6_weight = pretrained_state_dict['classifier.0.weight'].view(4096, 512, 7, 7)  # (4096, 512, 7, 7)
         conv_fc6_bias = pretrained_state_dict['classifier.0.bias']  # (4096)
-        state_dict['conv6.weight'] = decimate(conv_fc6_weight, m=[4, None, 3, 3])  # (1024, 512, 3, 3)
-        state_dict['conv6.bias'] = decimate(conv_fc6_bias, m=[4])  # (1024)
+        state_dict['conv6.weight'] = utils.decimate(conv_fc6_weight, m=[4, None, 3, 3])  # (1024, 512, 3, 3)
+        state_dict['conv6.bias'] = utils.decimate(conv_fc6_bias, m=[4])  # (1024)
         # fc7
         conv_fc7_weight = pretrained_state_dict['classifier.3.weight'].view(4096, 4096, 1, 1)  # (4096, 4096, 1, 1)
         conv_fc7_bias = pretrained_state_dict['classifier.3.bias']  # (4096)
-        state_dict['conv7.weight'] = decimate(conv_fc7_weight, m=[4, 4, None, None])  # (1024, 1024, 1, 1)
-        state_dict['conv7.bias'] = decimate(conv_fc7_bias, m=[4])  # (1024)
+        state_dict['conv7.weight'] = utils.decimate(conv_fc7_weight, m=[4, 4, None, None])  # (1024, 1024, 1, 1)
+        state_dict['conv7.bias'] = utils.decimate(conv_fc7_bias, m=[4])  # (1024)
 
         # Note: an FC layer of size (K) operating on a flattened version (C*H*W) of a 2D image of size (C, H, W)...
         # ...is equivalent to a convolutional layer with kernel size (H, W), input channels C, output channels K...
@@ -124,7 +126,7 @@ class VGGBase(nn.Module):
 
         self.load_state_dict(state_dict)
 
-        print("\nLoaded base model.\n")
+        print("Loaded base model.\n")
 
 
 class AuxiliaryConvolutions(nn.Module):
@@ -449,8 +451,7 @@ class SSD300(nn.Module):
 
         for i in range(batch_size):
             # Decode object coordinates from the form we regressed predicted boxes to
-            decoded_locs = cxcy_to_xy(
-                gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy))  # (8732, 4), these are fractional pt. coordinates
+            decoded_locs = utils.cxcy_to_xy(utils.gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy))  # (8732, 4), these are fractional pt. coordinates
 
             # Lists to store boxes and scores for this image
             image_boxes = list()
@@ -475,7 +476,7 @@ class SSD300(nn.Module):
                 class_decoded_locs = class_decoded_locs[sort_ind]  # (n_min_score, 4)
 
                 # Find the overlap between predicted boxes
-                overlap = find_jaccard_overlap(class_decoded_locs, class_decoded_locs)  # (n_qualified, n_min_score)
+                overlap = utils.find_jaccard_overlap(class_decoded_locs, class_decoded_locs)  # (n_qualified, n_min_score)
 
                 # Non-Maximum Suppression (NMS)
 
@@ -541,13 +542,13 @@ class MultiBoxLoss(nn.Module):
     def __init__(self, priors_cxcy, threshold=0.5, neg_pos_ratio=3, alpha=1.):
         super(MultiBoxLoss, self).__init__()
         self.priors_cxcy = priors_cxcy
-        self.priors_xy = cxcy_to_xy(priors_cxcy)
+        self.priors_xy = utils.cxcy_to_xy(priors_cxcy)
         self.threshold = threshold
         self.neg_pos_ratio = neg_pos_ratio
         self.alpha = alpha
 
-        self.smooth_l1 = nn.L1Loss()
-        self.cross_entropy = nn.CrossEntropyLoss(reduce=False)
+        self.smooth_l1 = nn.SmoothL1Loss()
+        self.cross_entropy = nn.CrossEntropyLoss(reduction='none')
 
     def forward(self, predicted_locs, predicted_scores, boxes, labels):
         """
@@ -572,8 +573,7 @@ class MultiBoxLoss(nn.Module):
         for i in range(batch_size):
             n_objects = boxes[i].size(0)
 
-            overlap = find_jaccard_overlap(boxes[i],
-                                           self.priors_xy)  # (n_objects, 8732)
+            overlap = utils.find_jaccard_overlap(boxes[i], self.priors_xy)  # (n_objects, 8732)
 
             # For each prior, find the object that has the maximum overlap
             overlap_for_each_prior, object_for_each_prior = overlap.max(dim=0)  # (8732)
@@ -601,7 +601,7 @@ class MultiBoxLoss(nn.Module):
             true_classes[i] = label_for_each_prior
 
             # Encode center-size object coordinates into the form we regressed predicted boxes to
-            true_locs[i] = cxcy_to_gcxgcy(xy_to_cxcy(boxes[i][object_for_each_prior]), self.priors_cxcy)  # (8732, 4)
+            true_locs[i] = utils.cxcy_to_gcxgcy(utils.xy_to_cxcy(boxes[i][object_for_each_prior]), self.priors_cxcy)  # (8732, 4)
 
         # Identify priors that are positive (object/non-background)
         positive_priors = true_classes != 0  # (N, 8732)
@@ -645,5 +645,4 @@ class MultiBoxLoss(nn.Module):
         conf_loss = (conf_loss_hard_neg.sum() + conf_loss_pos.sum()) / n_positives.sum().float()  # (), scalar
 
         # TOTAL LOSS
-
         return conf_loss + self.alpha * loc_loss

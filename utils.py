@@ -1,126 +1,8 @@
-import json
-import os
 import torch
 import random
-import xml.etree.ElementTree as ET
 import torchvision.transforms.functional as FT
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Label map
-voc_labels = ('aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable',
-              'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
-label_map = {k: v + 1 for v, k in enumerate(voc_labels)}
-label_map['background'] = 0
-rev_label_map = {v: k for k, v in label_map.items()}  # Inverse mapping
-
-# Color map for bounding boxes of detected objects from https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
-distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
-                   '#d2f53c', '#fabebe', '#008080', '#000080', '#aa6e28', '#fffac8', '#800000', '#aaffc3', '#808000',
-                   '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
-label_color_map = {k: distinct_colors[i] for i, k in enumerate(label_map.keys())}
-
-
-def parse_annotation(annotation_path):
-    tree = ET.parse(annotation_path)
-    root = tree.getroot()
-
-    boxes = list()
-    labels = list()
-    difficulties = list()
-    for object in root.iter('object'):
-
-        difficult = int(object.find('difficult').text == '1')
-
-        label = object.find('name').text.lower().strip()
-        if label not in label_map:
-            continue
-
-        bbox = object.find('bndbox')
-        xmin = int(bbox.find('xmin').text) - 1
-        ymin = int(bbox.find('ymin').text) - 1
-        xmax = int(bbox.find('xmax').text) - 1
-        ymax = int(bbox.find('ymax').text) - 1
-
-        boxes.append([xmin, ymin, xmax, ymax])
-        labels.append(label_map[label])
-        difficulties.append(difficult)
-
-    return {'boxes': boxes, 'labels': labels, 'difficulties': difficulties}
-
-
-def create_data_lists(voc07_path, voc12_path, output_folder):
-    """
-    Create lists of images, the bounding boxes and labels of the objects in these images, and save these to file.
-
-    :param voc07_path: path to the 'VOC2007' folder
-    :param voc12_path: path to the 'VOC2012' folder
-    :param output_folder: folder where the JSONs must be saved
-    """
-    voc07_path = os.path.abspath(voc07_path)
-    voc12_path = os.path.abspath(voc12_path)
-
-    train_images = list()
-    train_objects = list()
-    n_objects = 0
-
-    # Training data
-    for path in [voc07_path, voc12_path]:
-
-        # Find IDs of images in training data
-        with open(os.path.join(path, 'ImageSets/Main/trainval.txt')) as f:
-            ids = f.read().splitlines()
-
-        for id in ids:
-            # Parse annotation's XML file
-            objects = parse_annotation(os.path.join(path, 'Annotations', id + '.xml'))
-            if len(objects['boxes']) == 0:
-                continue
-            n_objects += len(objects)
-            train_objects.append(objects)
-            train_images.append(os.path.join(path, 'JPEGImages', id + '.jpg'))
-
-    assert len(train_objects) == len(train_images)
-
-    # Save to file
-    with open(os.path.join(output_folder, 'TRAIN_images.json'), 'w') as j:
-        json.dump(train_images, j)
-    with open(os.path.join(output_folder, 'TRAIN_objects.json'), 'w') as j:
-        json.dump(train_objects, j)
-    with open(os.path.join(output_folder, 'label_map.json'), 'w') as j:
-        json.dump(label_map, j)  # save label map too
-
-    print('\nThere are %d training images containing a total of %d objects. Files have been saved to %s.' % (
-        len(train_images), n_objects, os.path.abspath(output_folder)))
-
-    # Test data
-    test_images = list()
-    test_objects = list()
-    n_objects = 0
-
-    # Find IDs of images in the test data
-    with open(os.path.join(voc07_path, 'ImageSets/Main/test.txt')) as f:
-        ids = f.read().splitlines()
-
-    for id in ids:
-        # Parse annotation's XML file
-        objects = parse_annotation(os.path.join(voc07_path, 'Annotations', id + '.xml'))
-        if len(objects) == 0:
-            continue
-        test_objects.append(objects)
-        n_objects += len(objects)
-        test_images.append(os.path.join(voc07_path, 'JPEGImages', id + '.jpg'))
-
-    assert len(test_objects) == len(test_images)
-
-    # Save to file
-    with open(os.path.join(output_folder, 'TEST_images.json'), 'w') as j:
-        json.dump(test_images, j)
-    with open(os.path.join(output_folder, 'TEST_objects.json'), 'w') as j:
-        json.dump(test_objects, j)
-
-    print('\nThere are %d test images containing a total of %d objects. Files have been saved to %s.' % (
-        len(test_images), n_objects, os.path.abspath(output_folder)))
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def decimate(tensor, m):
@@ -136,8 +18,7 @@ def decimate(tensor, m):
     assert tensor.dim() == len(m)
     for d in range(tensor.dim()):
         if m[d] is not None:
-            tensor = tensor.index_select(dim=d,
-                                         index=torch.arange(start=0, end=tensor.size(d), step=m[d]).long())
+            tensor = tensor.index_select(dim=d, index=torch.arange(start=0, end=tensor.size(d), step=m[d]).long())
 
     return tensor
 
@@ -165,8 +46,7 @@ def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels, tr
     true_images = list()
     for i in range(len(true_labels)):
         true_images.extend([i] * true_labels[i].size(0))
-    true_images = torch.LongTensor(true_images).to(
-        device)  # (n_objects), n_objects is the total no. of objects across all images
+    true_images = torch.LongTensor(true_images).to(device)  # (n_objects), n_objects is the total no. of objects across all images
     true_boxes = torch.cat(true_boxes, dim=0)  # (n_objects, 4)
     true_labels = torch.cat(true_labels, dim=0)  # (n_objects)
     true_difficulties = torch.cat(true_difficulties, dim=0)  # (n_objects)
@@ -195,8 +75,7 @@ def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels, tr
 
         # Keep track of which true objects with this class have already been 'detected'
         # So far, none
-        true_class_boxes_detected = torch.zeros((true_class_difficulties.size(0)), dtype=torch.uint8).to(
-            device)  # (n_class_objects)
+        true_class_boxes_detected = torch.zeros((true_class_difficulties.size(0)), dtype=torch.uint8).to(device)  # (n_class_objects)
 
         # Extract only detections with this class
         det_class_images = det_images[det_labels == c]  # (n_class_detections)
@@ -285,7 +164,8 @@ def xy_to_cxcy(xy):
     :return: bounding boxes in center-size coordinates, a tensor of size (n_boxes, 4)
     """
     return torch.cat([(xy[:, 2:] + xy[:, :2]) / 2,  # c_x, c_y
-                      xy[:, 2:] - xy[:, :2]], 1)  # w, h
+                      xy[:, 2:] - xy[:, :2]],  # w, h
+                     dim=1)
 
 
 def cxcy_to_xy(cxcy):
@@ -296,12 +176,13 @@ def cxcy_to_xy(cxcy):
     :return: bounding boxes in boundary coordinates, a tensor of size (n_boxes, 4)
     """
     return torch.cat([cxcy[:, :2] - (cxcy[:, 2:] / 2),  # x_min, y_min
-                      cxcy[:, :2] + (cxcy[:, 2:] / 2)], 1)  # x_max, y_max
+                      cxcy[:, :2] + (cxcy[:, 2:] / 2)],  # x_max, y_max
+                     dim=1)
 
 
-def cxcy_to_gcxgcy(cxcy, priors_cxcy):
+def cxcy_to_gcxgcy(cxcy, priors_cxcy, variances=(10, 5)):
     """
-    Encode bounding boxes (that are in center-size form) w.r.t. the corresponding prior boxes (that are in center-size form).
+    Encode bounding boxes (that are in center-size form) w.r.t. the corresponding prior boxes (that are in boundary form).
 
     For the center coordinates, find the offset with respect to the prior box, and scale by the size of the prior box.
     For the size coordinates, scale by the size of the prior box, and convert to the log-space.
@@ -310,17 +191,19 @@ def cxcy_to_gcxgcy(cxcy, priors_cxcy):
 
     :param cxcy: bounding boxes in center-size coordinates, a tensor of size (n_priors, 4)
     :param priors_cxcy: prior boxes with respect to which the encoding must be performed, a tensor of size (n_priors, 4)
+    :param variances: two variances for center and size coordinates
     :return: encoded bounding boxes, a tensor of size (n_priors, 4)
     """
 
-    # The 10 and 5 below are referred to as 'variances' in the original Caffe repo, completely empirical
+    # The variances (10, 5) are referred to as 'variances' in the original Caffe repo, completely empirical
     # They are for some sort of numerical conditioning, for 'scaling the localization gradient'
     # See https://github.com/weiliu89/caffe/issues/155
-    return torch.cat([(cxcy[:, :2] - priors_cxcy[:, :2]) / (priors_cxcy[:, 2:] / 10),  # g_c_x, g_c_y
-                      torch.log(cxcy[:, 2:] / priors_cxcy[:, 2:]) * 5], 1)  # g_w, g_h
+    return torch.cat([variances[0] * (cxcy[:, :2] - priors_cxcy[:, :2]) / priors_cxcy[:, 2:],  # g_c_x, g_c_y
+                      variances[1] * torch.log(cxcy[:, 2:] / priors_cxcy[:, 2:])],  # g_w, g_h
+                     dim=1)
 
 
-def gcxgcy_to_cxcy(gcxgcy, priors_cxcy):
+def gcxgcy_to_cxcy(gcxgcy, priors_cxcy, variances=(10, 5)):
     """
     Decode bounding box coordinates predicted by the model, since they are encoded in the form mentioned above.
 
@@ -330,11 +213,13 @@ def gcxgcy_to_cxcy(gcxgcy, priors_cxcy):
 
     :param gcxgcy: encoded bounding boxes, i.e. output of the model, a tensor of size (n_priors, 4)
     :param priors_cxcy: prior boxes with respect to which the encoding is defined, a tensor of size (n_priors, 4)
+    :param variances: two variances for center and size coordinates
     :return: decoded bounding boxes in center-size form, a tensor of size (n_priors, 4)
     """
 
-    return torch.cat([gcxgcy[:, :2] * priors_cxcy[:, 2:] / 10 + priors_cxcy[:, :2],  # c_x, c_y
-                      torch.exp(gcxgcy[:, 2:] / 5) * priors_cxcy[:, 2:]], 1)  # w, h
+    return torch.cat([gcxgcy[:, :2] / variances[0] * priors_cxcy[:, 2:] + priors_cxcy[:, :2],  # c_x, c_y
+                      torch.exp(gcxgcy[:, 2:] / variances[1]) * priors_cxcy[:, 2:]],  # w, h
+                     dim=1)
 
 
 def find_intersection(set_1, set_2):
@@ -466,8 +351,7 @@ def random_crop(image, boxes, labels):
             crop = torch.FloatTensor([left, top, right, bottom])  # (4)
 
             # Calculate Jaccard overlap between the crop and the bounding boxes
-            overlap = find_jaccard_overlap(crop.unsqueeze(0),
-                                           boxes)  # (1, n_objects), n_objects is the no. of objects in this image
+            overlap = find_jaccard_overlap(crop.unsqueeze(0), boxes)  # (1, n_objects), n_objects is the no. of objects in this image
             overlap = overlap.squeeze(0)  # (n_objects)
 
             # If not a single bounding box has a Jaccard overlap of greater than the minimum, try again
@@ -514,7 +398,7 @@ def flip(image, boxes):
 
     # Flip boxes
     width = image.size(2)
-    new_boxes = boxes
+    new_boxes = boxes.clone()
     new_boxes[:, 0] = width - boxes[:, 2] - 1
     new_boxes[:, 2] = width - boxes[:, 0] - 1
 
