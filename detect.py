@@ -67,7 +67,7 @@ def detect(image, min_score, max_overlap, top_k, suppress=None):
     det_boxes = det_boxes * original_dims
 
     # Decode class integer labels
-    det_labels = [labels[lb] for lb in det_labels[0].to('cpu').tolist() if lb != 0]
+    det_labels = [labels[l] for l in det_labels[0].to('cpu').tolist() if l != 0]
 
     # If no objects found, Just return original image
     if len(det_labels) == 0:
@@ -89,7 +89,7 @@ def detect(image, min_score, max_overlap, top_k, suppress=None):
         # Boxes
         box_location = det_boxes[i].tolist()
         draw.rectangle(xy=box_location, outline=color)
-        draw.rectangle(xy=[lb + 1. for lb in box_location], outline=color)
+        draw.rectangle(xy=[l + 1. for l in box_location], outline=color)
 
         # Text
         text_size = font.getsize(det_labels[i].upper())
