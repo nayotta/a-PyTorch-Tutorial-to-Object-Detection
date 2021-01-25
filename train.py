@@ -10,6 +10,10 @@ import time
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 cudnn.benchmark = True
 
+# The paper trains for 120,000 iterations with a batch size of 32, decays after 80,000 and 100,000 iterations.
+# Training on a RTX 3090 cost about 10 hours with average GPU usage about 70%.
+# If your GPU has less vram, try to decrease the batch size, and change the iterations and decay_lr_at accordingly.
+
 # Dataset and DataLoader
 keep_difficult = True  # use objects considered difficult to detect?
 num_workers = 8  # number of workers for loading data in the DataLoader
@@ -81,8 +85,7 @@ def train(dataloader, model, criterion, optimizer, epoch):
         if i % print_freq == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch, i, len(dataloader),
-                                                                  batch_time=batch_time, loss=losses))
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch, i, len(dataloader), batch_time=batch_time, loss=losses))
 
 
 def main():
@@ -127,16 +130,13 @@ def main():
 
     # Calculate total number of epochs to train and the epochs to decay learning rate at (i.e. convert iterations to epochs)
     epochs = iterations // (len(train_ds) // batch_size)
-
-    # The paper trains for 120,000 iterations with a batch size of 32, decays after 80,000 and 100,000 iterations
-    global decay_lr_at
-    decay_lr_at = [it // (len(train_ds) // batch_size) for it in decay_lr_at]
+    decay_lr_at_epochs = [it // (len(train_ds) // batch_size) for it in decay_lr_at]
 
     # Epochs
     for epoch in range(start_epoch, epochs):
 
         # Decay learning rate at particular epochs
-        if epoch in decay_lr_at:
+        if epoch in decay_lr_at_epochs:
             utils.adjust_learning_rate(optimizer, decay_lr_to)
 
         # One epoch's training
