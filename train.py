@@ -103,6 +103,19 @@ def main():
     # Initialize model
     model = SSD300(n_classes=n_classes)
 
+    # Load checkpoint if existed
+    checkpoint = None
+    if checkpoint_path is not None and os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        start_epoch = checkpoint['epoch'] + 1
+        print('Load checkpoint from epoch %d.\n' % checkpoint['epoch'])
+
+    if checkpoint is not None:
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+    model.to(device)
+    model.train()
+
     # Initialize the optimizer, with twice the default learning rate for biases, as in the original Caffe repo
     biases = list()
     not_biases = list()
@@ -115,16 +128,8 @@ def main():
     optimizer = torch.optim.SGD(params=[{'params': biases, 'lr': 2 * lr}, {'params': not_biases}],
                                 lr=lr, momentum=momentum, weight_decay=weight_decay)
 
-    # Load checkpoint if existed
-    if checkpoint_path is not None and os.path.exists(checkpoint_path):
-        checkpoint = torch.load(checkpoint_path)
-        print('Load checkpoint from epoch %d.\n' % checkpoint['epoch'])
-        model.load_state_dict(checkpoint['model_state_dict'])
+    if checkpoint is not None:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch'] + 1
-
-    model.to(device)
-    model.train()
 
     criterion = MultiBoxLoss(priors_cxcy=model.priors_cxcy).to(device)
 
