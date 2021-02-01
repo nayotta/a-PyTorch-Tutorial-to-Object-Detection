@@ -25,12 +25,12 @@ class PascalVOCDataset(Dataset):
 
         if split == 'TRAIN':
             self.datasets = [
-                VOCDetection('data', year='2007', image_set='trainval'),
-                VOCDetection('data', year='2012', image_set='trainval')
+                VOCDetection(root, year='2007', image_set='trainval'),
+                VOCDetection(root, year='2012', image_set='trainval')
             ]
         else:
             self.datasets = [
-                VOCDetection('data', year='2007', image_set='test')
+                VOCDetection(root, year='2007', image_set='test')
             ]
 
     def __len__(self):
